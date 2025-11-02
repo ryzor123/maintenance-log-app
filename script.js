@@ -1,5 +1,5 @@
 // Google Drive Configuration - REPLACE WITH YOUR ACTUAL URL
-const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyIp4S2Hl91jzk6rbxzukpcrgB6fbZBFXWctubYaQlE-G_2Amtq-LwI986ozq6-vYHXWQ/exec';
+const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxiY-ZHk0pZwG-r6I9wbSSeLEoeOCFbAjIMrIdqurGCGNFxPpvHOaVHcXlcN4aSGS62BQ/exec';
 
 // App State
 let maintenanceLogs = [];
@@ -169,3 +169,4 @@ function showView(viewName) {
 function logout() {
     showLogin();
 }
+
