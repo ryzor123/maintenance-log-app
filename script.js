@@ -1,10 +1,9 @@
 // Configuration - UPDATE THESE WITH YOUR ACTUAL SUPABASE CREDENTIALS
-const SUPABASE_URL = 'hhttps://kgtbkzqyclsenkvyajyd.supabase.co';
+const SUPABASE_URL = 'https://kgtbkzqyclsenkvyajyd.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtndGJrenF5Y2xzZW5rdnlhanlkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIwNzQyNDksImV4cCI6MjA3NzY1MDI0OX0.1tFJQAJDcb4Nf1bYChfLkjA2xbjwJu6ekTcWl8fNGvk';
 
 // Wait for Supabase to load before initializing
 function initializeApp() {
-    // Check if supabase is available
     if (typeof supabase === 'undefined') {
         console.error('Supabase library not loaded yet. Retrying...');
         setTimeout(initializeApp, 100);
@@ -12,15 +11,11 @@ function initializeApp() {
     }
 
     try {
-        // Initialize Supabase client
         window.supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         console.log('Supabase client initialized successfully');
-        
-        // Now initialize the rest of the app
         initApp();
     } catch (error) {
         console.error('Failed to initialize Supabase:', error);
-        // Continue without Supabase
         initApp();
     }
 }
@@ -33,31 +28,25 @@ function initApp() {
     console.log('App initialized - Supabase:', !!window.supabaseClient);
     checkAuth();
     setupEventListeners();
-    loadMaintenanceLogs(); // Load logs immediately
+    loadMaintenanceLogs();
 }
 
 // Authentication - SIMPLIFIED VERSION
 async function checkAuth() {
     try {
-        console.log('Checking authentication...');
-        
-        // Skip authentication for now - go straight to app
         showMainApp();
-        
     } catch (error) {
         console.error('Auth check failed:', error);
-        showMainApp(); // Still show the app even if auth fails
+        showMainApp();
     }
 }
 
 function showLogin() {
-    console.log('Showing login page');
     document.getElementById('login-page').classList.add('active');
     document.getElementById('main-app').classList.remove('active');
 }
 
 function showMainApp() {
-    console.log('Showing main app');
     document.getElementById('login-page').classList.remove('active');
     document.getElementById('main-app').classList.add('active');
     showView('dashboard');
@@ -65,17 +54,14 @@ function showMainApp() {
 
 // Event Listeners
 function setupEventListeners() {
-    // Login form - SIMPLIFIED
     const loginForm = document.getElementById('login-form');
     if (loginForm) {
         loginForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            console.log('Login attempted - redirecting to main app');
             showMainApp();
         });
     }
 
-    // Maintenance form
     const maintenanceForm = document.getElementById('maintenance-form');
     if (maintenanceForm) {
         maintenanceForm.addEventListener('submit', async (e) => {
@@ -84,29 +70,55 @@ function setupEventListeners() {
         });
     }
 
-    // Search functionality
     const searchInput = document.getElementById('search-input');
     if (searchInput) {
         searchInput.addEventListener('input', displayMaintenanceLogs);
     }
 }
 
+// File Upload Function
+async function uploadFile(file, bucketName) {
+    if (!file) return null;
+    
+    try {
+        // Generate unique file name
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
+        
+        // Upload file to Supabase storage
+        const { data, error } = await window.supabaseClient.storage
+            .from(bucketName)
+            .upload(fileName, file);
+
+        if (error) {
+            console.error(`Error uploading to ${bucketName}:`, error);
+            return null;
+        }
+
+        // Get public URL
+        const { data: { publicUrl } } = window.supabaseClient.storage
+            .from(bucketName)
+            .getPublicUrl(fileName);
+
+        console.log(`File uploaded successfully: ${publicUrl}`);
+        return publicUrl;
+    } catch (error) {
+        console.error('File upload failed:', error);
+        return null;
+    }
+}
+
 // Navigation
 function showView(viewName) {
-    console.log('Switching to view:', viewName);
-    
-    // Hide all views
     document.querySelectorAll('.view').forEach(view => {
         view.classList.remove('active');
     });
     
-    // Show selected view
     const targetView = document.getElementById(`${viewName}-view`);
     if (targetView) {
         targetView.classList.add('active');
     }
     
-    // Load data if needed
     if (viewName === 'logs') {
         loadMaintenanceLogs();
     }
@@ -143,10 +155,30 @@ function toggleExternalRepair() {
     }
 }
 
-// Maintenance Logs CRUD
+// Maintenance Logs CRUD with File Upload
 async function createMaintenanceLog() {
     console.log('Creating maintenance log...');
     
+    // Get file inputs
+    const machineImageFile = document.getElementById('machine-image')?.files[0];
+    const quotationFile = document.getElementById('quotation-file')?.files[0];
+    
+    let imageUrl = null;
+    let quotationUrl = null;
+
+    // Upload files if they exist
+    if (window.supabaseClient) {
+        if (machineImageFile) {
+            console.log('Uploading machine image...');
+            imageUrl = await uploadFile(machineImageFile, 'machine-images');
+        }
+        
+        if (quotationFile) {
+            console.log('Uploading quotation file...');
+            quotationUrl = await uploadFile(quotationFile, 'quotations');
+        }
+    }
+
     const formData = {
         machine_name: document.getElementById('machine-name')?.value || '',
         machine_section: document.getElementById('machine-section')?.value || '',
@@ -158,8 +190,10 @@ async function createMaintenanceLog() {
         description: document.getElementById('description')?.value || '',
         needs_external_repair: document.getElementById('needs-external-repair')?.checked || false,
         vendor_name: document.getElementById('vendor-name')?.value || '',
-        external_duration_days: parseInt(document.getElementById('external-duration')?.value) || 0, // FIXED: external_duration_days
+        external_duration_days: parseInt(document.getElementById('external-duration-days')?.value) || 0,
         materials: getMaterialsData(),
+        image_url: imageUrl, // Store the image URL
+        quotation_url: quotationUrl, // Store the quotation URL
         created_at: new Date().toISOString(),
         created_by: 'User'
     };
@@ -171,36 +205,17 @@ async function createMaintenanceLog() {
     }
 
     try {
-        // ALWAYS save to localStorage first (this always works)
+        // ALWAYS save to localStorage first
         saveToLocalStorage(formData);
         
-        // Then try to save to Supabase if available (optional)
+        // Then try to save to Supabase if available
         if (window.supabaseClient) {
-            // Create a clean copy for Supabase with correct column names
-            const supabaseData = {
-                machine_name: formData.machine_name,
-                machine_section: formData.machine_section,
-                machine_details: formData.machine_details,
-                sub_part_area: formData.sub_part_area,
-                operator_name: formData.operator_name,
-                maintenance_staff: formData.maintenance_staff,
-                duration_hours: formData.duration_hours,
-                description: formData.description,
-                needs_external_repair: formData.needs_external_repair,
-                vendor_name: formData.vendor_name,
-                external_duration_days: formData.external_duration_days, // Correct column name
-                materials: formData.materials,
-                created_at: formData.created_at,
-                created_by: formData.created_by
-            };
-
             const { data, error } = await window.supabaseClient
                 .from('maintenance_logs')
-                .insert([supabaseData]);
+                .insert([formData]);
 
             if (error) {
                 console.error('Supabase error:', error.message);
-                // We don't show error to user since localStorage worked
             } else {
                 console.log('Also saved to Supabase:', data);
             }
@@ -208,9 +223,9 @@ async function createMaintenanceLog() {
 
         // Reset form and show success
         document.getElementById('maintenance-form').reset();
-        alert('Maintenance log created successfully!');
+        alert('Maintenance log created successfully!' + (imageUrl ? ' Image uploaded.' : '') + (quotationUrl ? ' Quotation uploaded.' : ''));
         showView('dashboard');
-        loadMaintenanceLogs(); // Reload to show the new log
+        loadMaintenanceLogs();
         
     } catch (error) {
         console.error('Error creating log:', error);
@@ -226,7 +241,7 @@ function saveToLocalStorage(formData) {
         id: Date.now().toString(),
         ...formData
     };
-    logs.unshift(newLog); // Add to beginning of array
+    logs.unshift(newLog);
     localStorage.setItem('maintenanceLogs', JSON.stringify(logs));
     console.log('Saved to localStorage:', newLog);
 }
@@ -253,11 +268,11 @@ async function loadMaintenanceLogs() {
     console.log('Loading maintenance logs...');
     
     try {
-        // ALWAYS load from localStorage first (this always works)
+        // ALWAYS load from localStorage first
         maintenanceLogs = JSON.parse(localStorage.getItem('maintenanceLogs') || '[]');
         console.log('Loaded from localStorage:', maintenanceLogs.length, 'logs');
         
-        // Then try to load from Supabase if available (optional)
+        // Then try to load from Supabase if available
         if (window.supabaseClient) {
             const { data, error } = await window.supabaseClient
                 .from('maintenance_logs')
@@ -266,7 +281,6 @@ async function loadMaintenanceLogs() {
 
             if (!error && data && data.length > 0) {
                 console.log('Also loaded from Supabase:', data.length, 'logs');
-                // You could merge Supabase data here if needed
             } else if (error) {
                 console.error('Supabase load error:', error.message);
             }
@@ -320,6 +334,14 @@ function displayMaintenanceLogs() {
                 <p><strong>Duration:</strong> ${log.duration_hours || 0} hours</p>
                 <p><strong>Description:</strong> ${log.description || 'N/A'}</p>
                 
+                ${log.image_url ? `
+                    <div>
+                        <strong>Machine Image:</strong>
+                        <br>
+                        <img src="${log.image_url}" alt="Machine Image" style="max-width: 200px; max-height: 200px; margin-top: 10px;">
+                    </div>
+                ` : ''}
+                
                 ${log.materials && log.materials.length > 0 ? `
                     <div>
                         <strong>Materials:</strong>
@@ -335,7 +357,10 @@ function displayMaintenanceLogs() {
                     <div>
                         <strong>External Repair:</strong>
                         <p>Vendor: ${log.vendor_name || 'N/A'}</p>
-                        <p>Duration: ${log.external_duration_days || log.external_duration || 'N/A'} days</p>
+                        <p>Duration: ${log.external_duration_days || 'N/A'} days</p>
+                        ${log.quotation_url ? `
+                            <p><a href="${log.quotation_url}" target="_blank">View Quotation File</a></p>
+                        ` : ''}
                     </div>
                 ` : ''}
             </div>
@@ -349,7 +374,6 @@ function displayMaintenanceLogs() {
 function editLog(id) {
     const log = maintenanceLogs.find(log => log.id == id);
     if (log) {
-        // Populate form with log data
         document.getElementById('machine-name').value = log.machine_name || '';
         document.getElementById('machine-section').value = log.machine_section || '';
         document.getElementById('machine-details').value = log.machine_details || '';
@@ -363,10 +387,8 @@ function editLog(id) {
         needsExternalRepair.checked = log.needs_external_repair || false;
         
         document.getElementById('vendor-name').value = log.vendor_name || '';
-        // Handle both column name versions
-        document.getElementById('external-duration').value = log.external_duration_days || log.external_duration || '';
+        document.getElementById('external-duration-days').value = log.external_duration_days || '';
         
-        // Populate materials
         document.getElementById('materials-container').innerHTML = '';
         if (log.materials && log.materials.length > 0) {
             log.materials.forEach(material => {
@@ -378,14 +400,11 @@ function editLog(id) {
                 lastRow.querySelector('.material-qty-available').value = material.quantity_available || '';
             });
         } else {
-            // Ensure at least one material row exists
             addMaterial();
         }
         
         toggleExternalRepair();
         showView('new-log');
-        
-        // Store the ID for update
         document.getElementById('maintenance-form').dataset.editingId = id;
     } else {
         alert('Log not found!');
@@ -397,7 +416,6 @@ function deleteLog(id) {
         maintenanceLogs = maintenanceLogs.filter(log => log.id != id);
         localStorage.setItem('maintenanceLogs', JSON.stringify(maintenanceLogs));
         
-        // Also delete from Supabase if available
         if (window.supabaseClient) {
             window.supabaseClient
                 .from('maintenance_logs')
@@ -430,7 +448,9 @@ function exportToExcel() {
         'Description': log.description,
         'External Repair': log.needs_external_repair ? 'Yes' : 'No',
         'Vendor Name': log.vendor_name,
-        'External Duration (Days)': log.external_duration_days || log.external_duration || '',
+        'External Duration (Days)': log.external_duration_days || '',
+        'Image URL': log.image_url || '',
+        'Quotation URL': log.quotation_url || '',
         'Created Date': new Date(log.created_at).toLocaleDateString(),
         'Created By': log.created_by
     })));
@@ -475,7 +495,6 @@ function exportAllData() {
     exportToExcel();
 }
 
-// Simple logout function
 function logout() {
     console.log('Logging out...');
     showLogin();
