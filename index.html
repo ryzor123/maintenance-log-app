@@ -5,9 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Maintenance Log System</title>
     <link rel="stylesheet" href="styles.css">
-    <!-- Include Supabase FIRST -->
-    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-    <!-- Then include other libraries -->
+    <!-- Export Libraries -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
@@ -108,7 +106,7 @@
                             </label>
                             <div id="external-repair-fields" style="display: none;">
                                 <input type="text" id="vendor-name" placeholder="Vendor Name">
-                                <input type="number" id="external-duration" placeholder="Tentative Duration (Days)">
+                                <input type="number" id="external-duration-days" placeholder="Tentative Duration (Days)">
                                 <input type="file" id="quotation-file" accept=".pdf,.doc,.docx">
                             </div>
                         </div>
@@ -135,6 +133,30 @@
         </div>
     </div>
 
+    <!-- FIREBASE SETUP - REPLACE THIS WITH YOUR ACTUAL CONFIG FROM FIREBASE CONSOLE -->
+    <script type="module">
+        // Your web app's Firebase configuration
+        const firebaseConfig = {
+            apiKey: "YOUR-API-KEY-HERE",
+            authDomain: "YOUR-PROJECT.firebaseapp.com",
+            projectId: "YOUR-PROJECT-ID",
+            storageBucket: "YOUR-PROJECT.appspot.com",
+            messagingSenderId: "123456789",
+            appId: "YOUR-APP-ID"
+        };
+
+        // Initialize Firebase
+        const app = firebase.initializeApp(firebaseConfig);
+        window.firebaseApp = app;
+        window.firestore = firebase.firestore();
+        window.storage = firebase.storage();
+        console.log('Firebase initialized!');
+    </script>
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+    
     <script src="script.js"></script>
 </body>
 </html>
