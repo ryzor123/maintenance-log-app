@@ -1,4 +1,8 @@
-// Maintenance Log System with Local Storage
+// JSONBin Configuration - REPLACE WITH YOUR ACTUAL CREDENTIALS
+const JSONBIN_API_KEY = '$2a$10$hzX1j1hFueX60CYI5dBhcORoLLXVImc.svqqGAC3q/pkpbJBSpz.e';
+const JSONBIN_BIN_ID = '69076ba543b1c97be9940844';
+
+// App State
 let maintenanceLogs = [];
 let currentUser = { email: 'user@company.com' };
 
@@ -8,11 +12,11 @@ document.addEventListener('DOMContentLoaded', function() {
     initApp();
 });
 
-function initApp() {
+async function initApp() {
     console.log('App initialized');
     showMainApp();
     setupEventListeners();
-    loadMaintenanceLogs();
+    await loadMaintenanceLogs();
 }
 
 function showMainApp() {
@@ -23,7 +27,6 @@ function showMainApp() {
 
 // Event Listeners
 function setupEventListeners() {
-    // Login form
     const loginForm = document.getElementById('login-form');
     if (loginForm) {
         loginForm.addEventListener('submit', function(e) {
@@ -32,7 +35,6 @@ function setupEventListeners() {
         });
     }
 
-    // Maintenance form
     const maintenanceForm = document.getElementById('maintenance-form');
     if (maintenanceForm) {
         maintenanceForm.addEventListener('submit', function(e) {
@@ -45,6 +47,56 @@ function setupEventListeners() {
     if (searchInput) {
         searchInput.addEventListener('input', displayMaintenanceLogs);
     }
+}
+
+// JSONBin Operations
+async function saveToJSONbin() {
+    try {
+        const response = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Master-Key': JSONBIN_API_KEY
+            },
+            body: JSON.stringify({
+                maintenanceLogs: maintenanceLogs,
+                last_updated: new Date().toISOString(),
+                total_logs: maintenanceLogs.length
+            })
+        });
+        
+        if (response.ok) {
+            console.log('✅ Data saved to JSONBin!');
+            return true;
+        }
+    } catch (error) {
+        console.error('❌ JSONBin save error:', error);
+    }
+    
+    // Fallback to localStorage
+    localStorage.setItem('maintenanceLogs', JSON.stringify(maintenanceLogs));
+    return false;
+}
+
+async function loadFromJSONbin() {
+    try {
+        const response = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}/latest`, {
+            headers: {
+                'X-Master-Key': JSONBIN_API_KEY
+            }
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            console.log('✅ Data loaded from JSONBin!');
+            return data.record.maintenanceLogs || [];
+        }
+    } catch (error) {
+        console.error('❌ JSONBin load error:', error);
+    }
+    
+    // Fallback to localStorage
+    return JSON.parse(localStorage.getItem('maintenanceLogs') || '[]');
 }
 
 // Navigation
@@ -89,19 +141,28 @@ function toggleExternalRepair() {
     }
 }
 
+// File to Base64
+function fileToBase64(file) {
+    return new Promise(function(resolve, reject) {
+        const reader = new FileReader();
+        reader.onload = function() { resolve(reader.result); };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+}
+
 // Create Maintenance Log
-function createMaintenanceLog() {
+async function createMaintenanceLog() {
     console.log('Creating maintenance log...');
     
-    // Get file inputs
     const machineImageFile = document.getElementById('machine-image').files[0];
     const quotationFile = document.getElementById('quotation-file').files[0];
     
     let imageData = null;
     let quotationData = null;
 
-    // Convert files to base64
-    const handleFiles = function() {
+    // Process files
+    const processFiles = function() {
         return new Promise(function(resolve) {
             let filesProcessed = 0;
             const totalFiles = (machineImageFile ? 1 : 0) + (quotationFile ? 1 : 0);
@@ -112,91 +173,79 @@ function createMaintenanceLog() {
             }
 
             if (machineImageFile) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    imageData = e.target.result;
+                fileToBase64(machineImageFile).then(function(data) {
+                    imageData = data;
                     filesProcessed++;
                     if (filesProcessed === totalFiles) resolve();
-                };
-                reader.readAsDataURL(machineImageFile);
+                });
             }
 
             if (quotationFile) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    quotationData = e.target.result;
+                fileToBase64(quotationFile).then(function(data) {
+                    quotationData = data;
                     filesProcessed++;
                     if (filesProcessed === totalFiles) resolve();
-                };
-                reader.readAsDataURL(quotationFile);
+                });
             }
         });
     };
 
-    handleFiles().then(function() {
-        const formData = {
-            machine_name: document.getElementById('machine-name').value || '',
-            machine_section: document.getElementById('machine-section').value || '',
-            machine_details: document.getElementById('machine-details').value || '',
-            sub_part_area: document.getElementById('sub-part-area').value || '',
-            operator_name: document.getElementById('operator-name').value || '',
-            maintenance_staff: document.getElementById('maintenance-staff').value || '',
-            duration_hours: parseFloat(document.getElementById('duration-hours').value) || 0,
-            description: document.getElementById('description').value || '',
-            needs_external_repair: document.getElementById('needs-external-repair').checked || false,
-            vendor_name: document.getElementById('vendor-name').value || '',
-            external_duration_days: parseInt(document.getElementById('external-duration-days').value) || 0,
-            materials: getMaterialsData(),
-            image_data: imageData,
-            quotation_data: quotationData,
-            image_filename: machineImageFile ? machineImageFile.name : null,
-            quotation_filename: quotationFile ? quotationFile.name : null,
-            created_at: new Date().toISOString(),
-            created_by: currentUser.email
-        };
+    await processFiles();
 
-        // Validate required fields
-        if (!formData.machine_name || !formData.machine_section || !formData.sub_part_area) {
-            alert('Please fill in all required fields: Machine Name, Section, and Sub-part Area');
-            return;
-        }
-
-        try {
-            // Save to localStorage
-            saveToLocalStorage(formData);
-            
-            // Show success message
-            let successMsg = 'Maintenance log created successfully!';
-            if (machineImageFile) successMsg += ' Image saved.';
-            if (quotationFile) successMsg += ' Quotation saved.';
-            
-            alert(successMsg);
-            
-            // Reset form
-            document.getElementById('maintenance-form').reset();
-            document.getElementById('materials-container').innerHTML = '<div class="material-row"><input type="text" placeholder="Material Name" class="material-name"><input type="number" placeholder="Qty Needed" class="material-qty-needed"><input type="number" placeholder="Qty Available" class="material-qty-available"><button type="button" onclick="removeMaterial(this)">Remove</button></div>';
-            
-            // Show dashboard and reload logs
-            showView('dashboard');
-            loadMaintenanceLogs();
-            
-        } catch (error) {
-            console.error('Error creating log:', error);
-            alert('Error creating maintenance log: ' + error.message);
-        }
-    });
-}
-
-// Save to localStorage
-function saveToLocalStorage(formData) {
-    const logs = JSON.parse(localStorage.getItem('maintenanceLogs') || '[]');
-    const newLog = {
+    const formData = {
         id: Date.now().toString(),
-        ...formData
+        machine_name: document.getElementById('machine-name').value || '',
+        machine_section: document.getElementById('machine-section').value || '',
+        machine_details: document.getElementById('machine-details').value || '',
+        sub_part_area: document.getElementById('sub-part-area').value || '',
+        operator_name: document.getElementById('operator-name').value || '',
+        maintenance_staff: document.getElementById('maintenance-staff').value || '',
+        duration_hours: parseFloat(document.getElementById('duration-hours').value) || 0,
+        description: document.getElementById('description').value || '',
+        needs_external_repair: document.getElementById('needs-external-repair').checked || false,
+        vendor_name: document.getElementById('vendor-name').value || '',
+        external_duration_days: parseInt(document.getElementById('external-duration-days').value) || 0,
+        materials: getMaterialsData(),
+        image_data: imageData,
+        quotation_data: quotationData,
+        image_filename: machineImageFile ? machineImageFile.name : null,
+        quotation_filename: quotationFile ? quotationFile.name : null,
+        created_at: new Date().toISOString(),
+        created_by: currentUser.email
     };
-    logs.unshift(newLog);
-    localStorage.setItem('maintenanceLogs', JSON.stringify(logs));
-    console.log('Saved to localStorage');
+
+    // Validate required fields
+    if (!formData.machine_name || !formData.machine_section || !formData.sub_part_area) {
+        alert('Please fill in all required fields: Machine Name, Section, and Sub-part Area');
+        return;
+    }
+
+    try {
+        // Add to local array
+        maintenanceLogs.unshift(formData);
+        
+        // Save to JSONBin
+        const cloudSaved = await saveToJSONbin();
+        
+        let successMsg = 'Maintenance log created successfully!';
+        if (cloudSaved) successMsg += ' (Saved to cloud)';
+        if (machineImageFile) successMsg += ' Image saved.';
+        if (quotationFile) successMsg += ' Quotation saved.';
+        
+        alert(successMsg);
+        
+        // Reset form
+        document.getElementById('maintenance-form').reset();
+        document.getElementById('materials-container').innerHTML = '<div class="material-row"><input type="text" placeholder="Material Name" class="material-name"><input type="number" placeholder="Qty Needed" class="material-qty-needed"><input type="number" placeholder="Qty Available" class="material-qty-available"><button type="button" onclick="removeMaterial(this)">Remove</button></div>';
+        
+        // Show dashboard and reload logs
+        showView('dashboard');
+        displayMaintenanceLogs();
+        
+    } catch (error) {
+        console.error('Error creating log:', error);
+        alert('Error creating maintenance log: ' + error.message);
+    }
 }
 
 function getMaterialsData() {
@@ -217,17 +266,10 @@ function getMaterialsData() {
     return materials;
 }
 
-// Load logs from localStorage
-function loadMaintenanceLogs() {
-    try {
-        maintenanceLogs = JSON.parse(localStorage.getItem('maintenanceLogs') || '[]');
-        console.log('Loaded logs:', maintenanceLogs.length);
-        displayMaintenanceLogs();
-    } catch (error) {
-        console.error('Error loading logs:', error);
-        maintenanceLogs = [];
-        displayMaintenanceLogs();
-    }
+// Load logs from JSONBin
+async function loadMaintenanceLogs() {
+    maintenanceLogs = await loadFromJSONbin();
+    displayMaintenanceLogs();
 }
 
 function displayMaintenanceLogs() {
@@ -341,11 +383,11 @@ function editLog(id) {
     }
 }
 
-function deleteLog(id) {
+async function deleteLog(id) {
     if (confirm('Are you sure you want to delete this maintenance log?')) {
         maintenanceLogs = maintenanceLogs.filter(function(log) { return log.id !== id; });
-        localStorage.setItem('maintenanceLogs', JSON.stringify(maintenanceLogs));
-        loadMaintenanceLogs();
+        await saveToJSONbin();
+        displayMaintenanceLogs();
         alert('Maintenance log deleted successfully!');
     }
 }
