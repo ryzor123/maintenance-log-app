@@ -2,36 +2,45 @@
 const SUPABASE_URL = 'https://kgtbkzqyclsenkvyajyd.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtndGJrenF5Y2xzZW5rdnlhanlkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIwNzQyNDksImV4cCI6MjA3NzY1MDI0OX0.1tFJQAJDcb4Nf1bYChfLkjA2xbjwJu6ekTcWl8fNGvk';
 
-// Initialize Supabase client
-let supabase;
-try {
-    supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    console.log('Supabase client initialized successfully');
-} catch (error) {
-    console.error('Failed to initialize Supabase:', error);
+// Wait for Supabase to load before initializing
+function initializeApp() {
+    // Check if supabase is available
+    if (typeof supabase === 'undefined') {
+        console.error('Supabase library not loaded yet. Retrying...');
+        setTimeout(initializeApp, 100);
+        return;
+    }
+
+    try {
+        // Initialize Supabase client
+        window.supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        console.log('Supabase client initialized successfully');
+        
+        // Now initialize the rest of the app
+        initApp();
+    } catch (error) {
+        console.error('Failed to initialize Supabase:', error);
+        // Continue without Supabase
+        initApp();
+    }
 }
 
 // App State
 let currentUser = null;
 let maintenanceLogs = [];
 
-// Initialize App
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('App loaded - checking authentication...');
-    
-    // Wait a bit to ensure Supabase is loaded
-    setTimeout(() => {
-        checkAuth();
-        setupEventListeners();
-    }, 100);
-});
+function initApp() {
+    console.log('App initialized - Supabase:', !!window.supabaseClient);
+    checkAuth();
+    setupEventListeners();
+}
 
 // Authentication - SIMPLIFIED VERSION
 async function checkAuth() {
     try {
         console.log('Checking authentication...');
         
-        // For now, skip authentication and go straight to app
+        // Skip authentication for now - go straight to app
         showMainApp();
         
     } catch (error) {
@@ -163,8 +172,8 @@ async function createMaintenanceLog() {
 
     try {
         // Try to save to Supabase if available
-        if (supabase) {
-            const { data, error } = await supabase
+        if (window.supabaseClient) {
+            const { data, error } = await window.supabaseClient
                 .from('maintenance_logs')
                 .insert([formData]);
 
@@ -226,8 +235,8 @@ async function loadMaintenanceLogs() {
     
     try {
         // Try to load from Supabase first
-        if (supabase) {
-            const { data, error } = await supabase
+        if (window.supabaseClient) {
+            const { data, error } = await window.supabaseClient
                 .from('maintenance_logs')
                 .select('*')
                 .order('created_at', { ascending: false });
@@ -353,8 +362,8 @@ function deleteLog(id) {
         localStorage.setItem('maintenanceLogs', JSON.stringify(maintenanceLogs));
         
         // Also delete from Supabase if available
-        if (supabase) {
-            supabase
+        if (window.supabaseClient) {
+            window.supabaseClient
                 .from('maintenance_logs')
                 .delete()
                 .eq('id', id)
@@ -433,4 +442,11 @@ function exportAllData() {
 function logout() {
     console.log('Logging out...');
     showLogin();
+}
+
+// Start the app when everything is loaded
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeApp);
+} else {
+    initializeApp();
 }
