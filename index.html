@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Maintenance Log System</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Include Supabase from CDN -->
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <!-- Include SheetJS for Excel export -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- Include jsPDF for PDF export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+</head>
+<body>
+    <div id="app">
+        <div id="login-page" class="page active">
+            <div class="login-container">
+                <div class="login-form">
+                    <h2>Maintenance Log System</h2>
+                    <p>Single User Access Only</p>
+                    <form id="login-form">
+                        <div class="form-group">
+                            <label for="email">Email:</label>
+                            <input type="email" id="email" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="password">Password:</label>
+                            <input type="password" id="password" required>
+                        </div>
+                        <button type="submit">Sign In</button>
+                    </form>
+                    <div id="login-message" class="error-message"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="main-app" class="page">
+            <header class="app-header">
+                <h1>Maintenance Log System</h1>
+                <nav>
+                    <button onclick="showView('dashboard')">Dashboard</button>
+                    <button onclick="showView('new-log')">New Maintenance</button>
+                    <button onclick="showView('logs')">View Logs</button>
+                    <button onclick="logout()">Logout</button>
+                </nav>
+            </header>
+
+            <main class="app-main">
+                <!-- Dashboard View -->
+                <div id="dashboard-view" class="view active">
+                    <h2>Dashboard</h2>
+                    <div class="dashboard-cards">
+                        <div class="card">
+                            <h3>Quick Actions</h3>
+                            <ul>
+                                <li><button onclick="showView('new-log')">Create New Maintenance Log</button></li>
+                                <li><button onclick="showView('logs')">View All Maintenance Logs</button></li>
+                                <li><button onclick="exportAllData()">Export All Data</button></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- New Maintenance Log Form -->
+                <div id="new-log-view" class="view">
+                    <h2>New Maintenance Log</h2>
+                    <form id="maintenance-form" class="maintenance-form">
+                        <!-- Machine Details -->
+                        <div class="form-section">
+                            <h3>Machine Details</h3>
+                            <input type="text" id="machine-name" placeholder="Machine Name" required>
+                            <input type="text" id="machine-section" placeholder="Section in Plant" required>
+                            <textarea id="machine-details" placeholder="Machine Details"></textarea>
+                            <input type="file" id="machine-image" accept="image/*">
+                        </div>
+
+                        <!-- Maintenance Details -->
+                        <div class="form-section">
+                            <h3>Maintenance Details</h3>
+                            <input type="text" id="sub-part-area" placeholder="Sub-part Area to Fix" required>
+                            <input type="text" id="operator-name" placeholder="Operator Name" required>
+                            <input type="text" id="maintenance-staff" placeholder="Maintenance Staff (comma separated)" required>
+                            <input type="number" id="duration-hours" placeholder="Duration (Hours)" step="0.5" required>
+                            <textarea id="description" placeholder="Description of Issue" required></textarea>
+                        </div>
+
+                        <!-- Materials Section -->
+                        <div class="form-section">
+                            <h3>Materials Needed</h3>
+                            <div id="materials-container">
+                                <div class="material-row">
+                                    <input type="text" placeholder="Material Name" class="material-name">
+                                    <input type="number" placeholder="Qty Needed" class="material-qty-needed">
+                                    <input type="number" placeholder="Qty Available" class="material-qty-available">
+                                    <button type="button" onclick="removeMaterial(this)">Remove</button>
+                                </div>
+                            </div>
+                            <button type="button" onclick="addMaterial()">Add Material</button>
+                        </div>
+
+                        <!-- External Repair -->
+                        <div class="form-section">
+                            <h3>External Repair (Chittagong Workshop)</h3>
+                            <label>
+                                <input type="checkbox" id="needs-external-repair" onchange="toggleExternalRepair()">
+                                Needs external repair?
+                            </label>
+                            <div id="external-repair-fields" style="display: none;">
+                                <input type="text" id="vendor-name" placeholder="Vendor Name">
+                                <input type="number" id="external-duration" placeholder="Tentative Duration (Days)">
+                                <input type="file" id="quotation-file" accept=".pdf,.doc,.docx">
+                            </div>
+                        </div>
+
+                        <button type="submit">Create Maintenance Log</button>
+                    </form>
+                </div>
+
+                <!-- Maintenance Logs List -->
+                <div id="logs-view" class="view">
+                    <div class="list-header">
+                        <h2>Maintenance Logs</h2>
+                        <div class="search-export">
+                            <input type="text" id="search-input" placeholder="Search by machine, operator, section...">
+                            <button onclick="exportToExcel()">Export to Excel</button>
+                            <button onclick="exportToPDF()">Export to PDF</button>
+                        </div>
+                    </div>
+                    <div id="logs-list" class="logs-grid">
+                        <!-- Logs will be displayed here -->
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
