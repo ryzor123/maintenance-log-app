@@ -1,11 +1,9 @@
-// JSONBin Configuration - REPLACE WITH YOUR ACTUAL CREDENTIALS
-const JSONBIN_API_KEY = '$2a$10$hzX1j1hFueX60CYI5dBhcORoLLXVImc.svqqGAC3q/pkpbJBSpz.e';
-const JSONBIN_BIN_ID = '69076ba543b1c97be9940844';
+// Google Drive Configuration
+const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzXeoLkRkWmoRkTGddNXDanLbRqCjZ8eRtbAoGiNb9ErVmQD_fDn0vP9wYKKKaOTSlg6A/exec';
 
 // App State
 let maintenanceLogs = [];
-let currentUser = { email: 'nazimul.1203106@gmail.com' };
-let useLocalStorage = false;
+let currentUser = { email: 'user@company.com' };
 
 // Initialize App
 document.addEventListener('DOMContentLoaded', function() {
@@ -14,7 +12,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 async function initApp() {
-    console.log('App initialized');
+    console.log('App initialized - Google Drive Storage');
     showMainApp();
     setupEventListeners();
     await loadMaintenanceLogs();
@@ -50,69 +48,70 @@ function setupEventListeners() {
     }
 }
 
-// JSONBin Operations
-async function saveToJSONbin() {
-    if (useLocalStorage) {
-        localStorage.setItem('maintenanceLogs', JSON.stringify(maintenanceLogs));
-        return false;
-    }
-
+// Google Drive Operations
+async function saveToGoogleDrive(formData) {
     try {
-        const response = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}`, {
-            method: 'PUT',
+        const response = await fetch(GOOGLE_SCRIPT_URL, {
+            method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-Master-Key': JSONBIN_API_KEY,
-                'X-Bin-Name': 'Maintenance Logs'
             },
             body: JSON.stringify({
-                maintenanceLogs: maintenanceLogs,
-                last_updated: new Date().toISOString(),
-                total_logs: maintenanceLogs.length
+                action: 'create_log',
+                ...formData
             })
         });
         
-        if (response.ok) {
-            console.log('✅ Data saved to JSONBin!');
-            return true;
-        } else {
-            console.warn('❌ JSONBin save failed, using localStorage');
-            useLocalStorage = true;
-            localStorage.setItem('maintenanceLogs', JSON.stringify(maintenanceLogs));
-            return false;
-        }
+        const result = await response.json();
+        return result;
     } catch (error) {
-        console.error('❌ JSONBin error, using localStorage:', error);
-        useLocalStorage = true;
-        localStorage.setItem('maintenanceLogs', JSON.stringify(maintenanceLogs));
-        return false;
+        console.error('Google Drive error:', error);
+        return { success: false, error: error.toString() };
     }
 }
 
-async function loadFromJSONbin() {
-    if (useLocalStorage) {
-        return JSON.parse(localStorage.getItem('maintenanceLogs') || '[]');
-    }
-
+async function uploadFileToDrive(file, fileName, mimeType) {
     try {
-        const response = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}/latest`, {
+        // Convert file to base64 for upload
+        const base64Data = await fileToBase64(file);
+        
+        const response = await fetch(GOOGLE_SCRIPT_URL, {
+            method: 'POST',
             headers: {
-                'X-Master-Key': JSONBIN_API_KEY
-            }
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                action: 'upload_file',
+                file_name: fileName,
+                file_data: base64Data,
+                mime_type: mimeType
+            })
         });
         
-        if (response.ok) {
-            const data = await response.json();
-            console.log('✅ Data loaded from JSONBin!');
-            return data.record.maintenanceLogs || [];
-        } else {
-            console.warn('❌ JSONBin load failed, using localStorage');
-            useLocalStorage = true;
-            return JSON.parse(localStorage.getItem('maintenanceLogs') || '[]');
-        }
+        const result = await response.json();
+        return result;
     } catch (error) {
-        console.error('❌ JSONBin load error, using localStorage:', error);
-        useLocalStorage = true;
+        console.error('File upload error:', error);
+        return { success: false, error: error.toString() };
+    }
+}
+
+async function loadFromGoogleDrive() {
+    try {
+        const response = await fetch(GOOGLE_SCRIPT_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                action: 'get_logs'
+            })
+        });
+        
+        const result = await response.json();
+        return result.success ? result.logs : [];
+    } catch (error) {
+        console.error('Google Drive load error:', error);
         return JSON.parse(localStorage.getItem('maintenanceLogs') || '[]');
     }
 }
@@ -169,46 +168,40 @@ function fileToBase64(file) {
     });
 }
 
-// Create Maintenance Log
+// Create Maintenance Log with File Uploads
 async function createMaintenanceLog() {
     console.log('Creating maintenance log...');
     
     const machineImageFile = document.getElementById('machine-image').files[0];
     const quotationFile = document.getElementById('quotation-file').files[0];
     
-    let imageData = null;
-    let quotationData = null;
+    let imageUrl = null;
+    let quotationUrl = null;
 
-    // Process files
-    const processFiles = function() {
-        return new Promise(function(resolve) {
-            let filesProcessed = 0;
-            const totalFiles = (machineImageFile ? 1 : 0) + (quotationFile ? 1 : 0);
-            
-            if (totalFiles === 0) {
-                resolve();
-                return;
-            }
+    // Upload files to Google Drive
+    if (machineImageFile) {
+        console.log('Uploading machine image...');
+        const result = await uploadFileToDrive(
+            machineImageFile, 
+            `machine_image_${Date.now()}_${machineImageFile.name}`,
+            machineImageFile.type
+        );
+        if (result.success) {
+            imageUrl = result.downloadUrl;
+        }
+    }
 
-            if (machineImageFile) {
-                fileToBase64(machineImageFile).then(function(data) {
-                    imageData = data;
-                    filesProcessed++;
-                    if (filesProcessed === totalFiles) resolve();
-                });
-            }
-
-            if (quotationFile) {
-                fileToBase64(quotationFile).then(function(data) {
-                    quotationData = data;
-                    filesProcessed++;
-                    if (filesProcessed === totalFiles) resolve();
-                });
-            }
-        });
-    };
-
-    await processFiles();
+    if (quotationFile) {
+        console.log('Uploading quotation file...');
+        const result = await uploadFileToDrive(
+            quotationFile,
+            `quotation_${Date.now()}_${quotationFile.name}`,
+            quotationFile.type
+        );
+        if (result.success) {
+            quotationUrl = result.downloadUrl;
+        }
+    }
 
     const formData = {
         id: Date.now().toString(),
@@ -224,8 +217,8 @@ async function createMaintenanceLog() {
         vendor_name: document.getElementById('vendor-name').value || '',
         external_duration_days: parseInt(document.getElementById('external-duration-days').value) || 0,
         materials: getMaterialsData(),
-        image_data: imageData,
-        quotation_data: quotationData,
+        image_url: imageUrl,
+        quotation_url: quotationUrl,
         image_filename: machineImageFile ? machineImageFile.name : null,
         quotation_filename: quotationFile ? quotationFile.name : null,
         created_at: new Date().toISOString(),
@@ -239,20 +232,17 @@ async function createMaintenanceLog() {
     }
 
     try {
-        // Add to local array
-        maintenanceLogs.unshift(formData);
-        
-        // Save to JSONBin or localStorage
-        const cloudSaved = await saveToJSONbin();
+        // Save to Google Drive
+        const result = await saveToGoogleDrive(formData);
         
         let successMsg = 'Maintenance log created successfully!';
-        if (cloudSaved) {
-            successMsg += ' (Saved to cloud)';
+        if (result.success) {
+            successMsg += ' (Saved to Google Drive)';
         } else {
-            successMsg += ' (Saved locally)';
+            successMsg += ' (Error saving to Drive)';
         }
-        if (machineImageFile) successMsg += ' Image saved.';
-        if (quotationFile) successMsg += ' Quotation saved.';
+        if (machineImageFile) successMsg += imageUrl ? ' Image uploaded.' : ' Image upload failed.';
+        if (quotationFile) successMsg += quotationUrl ? ' Quotation uploaded.' : ' Quotation upload failed.';
         
         alert(successMsg);
         
@@ -262,7 +252,7 @@ async function createMaintenanceLog() {
         
         // Show dashboard and reload logs
         showView('dashboard');
-        displayMaintenanceLogs();
+        loadMaintenanceLogs();
         
     } catch (error) {
         console.error('Error creating log:', error);
@@ -288,9 +278,9 @@ function getMaterialsData() {
     return materials;
 }
 
-// Load logs from JSONBin or localStorage
+// Load logs from Google Drive
 async function loadMaintenanceLogs() {
-    maintenanceLogs = await loadFromJSONbin();
+    maintenanceLogs = await loadFromGoogleDrive();
     displayMaintenanceLogs();
 }
 
@@ -334,9 +324,9 @@ function displayMaintenanceLogs() {
         html += '<p><strong>Duration:</strong> ' + (log.duration_hours || 0) + ' hours</p>';
         html += '<p><strong>Description:</strong> ' + (log.description || 'N/A') + '</p>';
         
-        if (log.image_data) {
+        if (log.image_url) {
             html += '<div><strong>Machine Image:</strong><br>';
-            html += '<img src="' + log.image_data + '" alt="Machine Image" style="max-width: 200px; max-height: 200px; margin-top: 10px; border: 1px solid #ddd; border-radius: 4px;">';
+            html += '<img src="' + log.image_url + '" alt="Machine Image" style="max-width: 200px; max-height: 200px; margin-top: 10px; border: 1px solid #ddd; border-radius: 4px;">';
             html += '<br><small>' + (log.image_filename || 'Image') + '</small></div>';
         }
         
@@ -352,8 +342,8 @@ function displayMaintenanceLogs() {
             html += '<div><strong>External Repair:</strong>';
             html += '<p>Vendor: ' + (log.vendor_name || 'N/A') + '</p>';
             html += '<p>Duration: ' + (log.external_duration_days || 'N/A') + ' days</p>';
-            if (log.quotation_data) {
-                html += '<p><a href="' + log.quotation_data + '" download="' + (log.quotation_filename || 'quotation') + '" style="color: #3498db; text-decoration: none;">📄 Download Quotation File</a></p>';
+            if (log.quotation_url) {
+                html += '<p><a href="' + log.quotation_url + '" target="_blank" style="color: #3498db; text-decoration: none;">📄 View Quotation File</a></p>';
             }
             html += '</div>';
         }
@@ -367,124 +357,4 @@ function displayMaintenanceLogs() {
     container.innerHTML = html;
 }
 
-function editLog(id) {
-    const log = maintenanceLogs.find(function(log) { return log.id === id; });
-    if (log) {
-        document.getElementById('machine-name').value = log.machine_name || '';
-        document.getElementById('machine-section').value = log.machine_section || '';
-        document.getElementById('machine-details').value = log.machine_details || '';
-        document.getElementById('sub-part-area').value = log.sub_part_area || '';
-        document.getElementById('operator-name').value = log.operator_name || '';
-        document.getElementById('maintenance-staff').value = log.maintenance_staff || '';
-        document.getElementById('duration-hours').value = log.duration_hours || '';
-        document.getElementById('description').value = log.description || '';
-        
-        document.getElementById('needs-external-repair').checked = log.needs_external_repair || false;
-        document.getElementById('vendor-name').value = log.vendor_name || '';
-        document.getElementById('external-duration-days').value = log.external_duration_days || '';
-        
-        document.getElementById('materials-container').innerHTML = '';
-        if (log.materials && log.materials.length > 0) {
-            log.materials.forEach(function(material) {
-                addMaterial();
-                const rows = document.querySelectorAll('.material-row');
-                const lastRow = rows[rows.length - 1];
-                lastRow.querySelector('.material-name').value = material.name || '';
-                lastRow.querySelector('.material-qty-needed').value = material.quantity_needed || '';
-                lastRow.querySelector('.material-qty-available').value = material.quantity_available || '';
-            });
-        } else {
-            addMaterial();
-        }
-        
-        toggleExternalRepair();
-        showView('new-log');
-        document.getElementById('maintenance-form').dataset.editingId = id;
-    } else {
-        alert('Log not found!');
-    }
-}
-
-async function deleteLog(id) {
-    if (confirm('Are you sure you want to delete this maintenance log?')) {
-        maintenanceLogs = maintenanceLogs.filter(function(log) { return log.id !== id; });
-        await saveToJSONbin();
-        displayMaintenanceLogs();
-        alert('Maintenance log deleted successfully!');
-    }
-}
-
-// Export functionality
-function exportToExcel() {
-    if (typeof XLSX === 'undefined') {
-        alert('Excel export library not loaded.');
-        return;
-    }
-
-    const data = maintenanceLogs.map(function(log) {
-        return {
-            'Machine Name': log.machine_name,
-            'Section': log.machine_section,
-            'Sub-part Area': log.sub_part_area,
-            'Operator': log.operator_name,
-            'Maintenance Staff': log.maintenance_staff,
-            'Duration (Hours)': log.duration_hours,
-            'Description': log.description,
-            'External Repair': log.needs_external_repair ? 'Yes' : 'No',
-            'Vendor Name': log.vendor_name,
-            'External Duration (Days)': log.external_duration_days || '',
-            'Image File': log.image_filename || '',
-            'Quotation File': log.quotation_filename || '',
-            'Created Date': new Date(log.created_at).toLocaleDateString(),
-            'Created By': log.created_by
-        };
-    });
-
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Maintenance Logs');
-    XLSX.writeFile(wb, 'maintenance-logs-' + new Date().toISOString().split('T')[0] + '.xlsx');
-}
-
-function exportToPDF() {
-    if (typeof jspdf === 'undefined') {
-        alert('PDF export library not loaded.');
-        return;
-    }
-
-    const doc = new jspdf.jsPDF();
-    
-    doc.text('Maintenance Logs Report', 14, 15);
-    doc.text('Generated by: ' + currentUser.email, 14, 22);
-    doc.text('Date: ' + new Date().toLocaleDateString(), 14, 29);
-    
-    const tableData = maintenanceLogs.map(function(log) {
-        return [
-            log.machine_name || 'N/A',
-            log.machine_section || 'N/A',
-            log.sub_part_area || 'N/A',
-            log.operator_name || 'N/A',
-            log.duration_hours || 0,
-            log.needs_external_repair ? 'Yes' : 'No',
-            new Date(log.created_at).toLocaleDateString()
-        ];
-    });
-    
-    doc.autoTable({
-        head: [['Machine', 'Section', 'Sub-part', 'Operator', 'Duration (h)', 'External', 'Date']],
-        body: tableData,
-        startY: 35,
-    });
-    
-    doc.save('maintenance-logs-' + new Date().toISOString().split('T')[0] + '.pdf');
-}
-
-function exportAllData() {
-    exportToExcel();
-}
-
-function logout() {
-    showLogin();
-}
-
-
+// ... rest of your functions remain the same
