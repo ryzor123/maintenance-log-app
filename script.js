@@ -1,5 +1,5 @@
 // Configuration - UPDATE THESE WITH YOUR ACTUAL SUPABASE CREDENTIALS
-const SUPABASE_URL = 'https://kgtbkzqyclsenkvyajyd.supabase.co';
+const SUPABASE_URL = 'hhttps://kgtbkzqyclsenkvyajyd.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtndGJrenF5Y2xzZW5rdnlhanlkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIwNzQyNDksImV4cCI6MjA3NzY1MDI0OX0.1tFJQAJDcb4Nf1bYChfLkjA2xbjwJu6ekTcWl8fNGvk';
 
 // Wait for Supabase to load before initializing
@@ -158,7 +158,7 @@ async function createMaintenanceLog() {
         description: document.getElementById('description')?.value || '',
         needs_external_repair: document.getElementById('needs-external-repair')?.checked || false,
         vendor_name: document.getElementById('vendor-name')?.value || '',
-        external_duration: document.getElementById('external-duration')?.value || '',
+        external_duration_days: parseInt(document.getElementById('external-duration')?.value) || 0, // FIXED: external_duration_days
         materials: getMaterialsData(),
         created_at: new Date().toISOString(),
         created_by: 'User'
@@ -176,12 +176,30 @@ async function createMaintenanceLog() {
         
         // Then try to save to Supabase if available (optional)
         if (window.supabaseClient) {
+            // Create a clean copy for Supabase with correct column names
+            const supabaseData = {
+                machine_name: formData.machine_name,
+                machine_section: formData.machine_section,
+                machine_details: formData.machine_details,
+                sub_part_area: formData.sub_part_area,
+                operator_name: formData.operator_name,
+                maintenance_staff: formData.maintenance_staff,
+                duration_hours: formData.duration_hours,
+                description: formData.description,
+                needs_external_repair: formData.needs_external_repair,
+                vendor_name: formData.vendor_name,
+                external_duration_days: formData.external_duration_days, // Correct column name
+                materials: formData.materials,
+                created_at: formData.created_at,
+                created_by: formData.created_by
+            };
+
             const { data, error } = await window.supabaseClient
                 .from('maintenance_logs')
-                .insert([formData]);
+                .insert([supabaseData]);
 
             if (error) {
-                console.error('Supabase error (this is OK - using localStorage):', error.message);
+                console.error('Supabase error:', error.message);
                 // We don't show error to user since localStorage worked
             } else {
                 console.log('Also saved to Supabase:', data);
@@ -249,6 +267,8 @@ async function loadMaintenanceLogs() {
             if (!error && data && data.length > 0) {
                 console.log('Also loaded from Supabase:', data.length, 'logs');
                 // You could merge Supabase data here if needed
+            } else if (error) {
+                console.error('Supabase load error:', error.message);
             }
         }
         
@@ -315,7 +335,7 @@ function displayMaintenanceLogs() {
                     <div>
                         <strong>External Repair:</strong>
                         <p>Vendor: ${log.vendor_name || 'N/A'}</p>
-                        <p>Duration: ${log.external_duration || 'N/A'} days</p>
+                        <p>Duration: ${log.external_duration_days || log.external_duration || 'N/A'} days</p>
                     </div>
                 ` : ''}
             </div>
@@ -343,7 +363,8 @@ function editLog(id) {
         needsExternalRepair.checked = log.needs_external_repair || false;
         
         document.getElementById('vendor-name').value = log.vendor_name || '';
-        document.getElementById('external-duration').value = log.external_duration || '';
+        // Handle both column name versions
+        document.getElementById('external-duration').value = log.external_duration_days || log.external_duration || '';
         
         // Populate materials
         document.getElementById('materials-container').innerHTML = '';
@@ -409,7 +430,7 @@ function exportToExcel() {
         'Description': log.description,
         'External Repair': log.needs_external_repair ? 'Yes' : 'No',
         'Vendor Name': log.vendor_name,
-        'External Duration (Days)': log.external_duration,
+        'External Duration (Days)': log.external_duration_days || log.external_duration || '',
         'Created Date': new Date(log.created_at).toLocaleDateString(),
         'Created By': log.created_by
     })));
