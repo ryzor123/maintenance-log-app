@@ -1,10 +1,11 @@
 // JSONBin Configuration - REPLACE WITH YOUR ACTUAL CREDENTIALS
-const JSONBIN_API_KEY = '$2a$10$hzX1j1hFueX60CYI5dBhcORoLLXVImc.svqqGAC3q/pkpbJBSpz.e';
-const JSONBIN_BIN_ID = '69076ba543b1c97be9940844';
+const JSONBIN_API_KEY = '$2a$10$YOUR_API_KEY_HERE';
+const JSONBIN_BIN_ID = 'YOUR_BIN_ID_HERE';
 
 // App State
 let maintenanceLogs = [];
 let currentUser = { email: 'user@company.com' };
+let useLocalStorage = false;
 
 // Initialize App
 document.addEventListener('DOMContentLoaded', function() {
@@ -51,12 +52,18 @@ function setupEventListeners() {
 
 // JSONBin Operations
 async function saveToJSONbin() {
+    if (useLocalStorage) {
+        localStorage.setItem('maintenanceLogs', JSON.stringify(maintenanceLogs));
+        return false;
+    }
+
     try {
         const response = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
-                'X-Master-Key': JSONBIN_API_KEY
+                'X-Master-Key': JSONBIN_API_KEY,
+                'X-Bin-Name': 'Maintenance Logs'
             },
             body: JSON.stringify({
                 maintenanceLogs: maintenanceLogs,
@@ -68,17 +75,25 @@ async function saveToJSONbin() {
         if (response.ok) {
             console.log('✅ Data saved to JSONBin!');
             return true;
+        } else {
+            console.warn('❌ JSONBin save failed, using localStorage');
+            useLocalStorage = true;
+            localStorage.setItem('maintenanceLogs', JSON.stringify(maintenanceLogs));
+            return false;
         }
     } catch (error) {
-        console.error('❌ JSONBin save error:', error);
+        console.error('❌ JSONBin error, using localStorage:', error);
+        useLocalStorage = true;
+        localStorage.setItem('maintenanceLogs', JSON.stringify(maintenanceLogs));
+        return false;
     }
-    
-    // Fallback to localStorage
-    localStorage.setItem('maintenanceLogs', JSON.stringify(maintenanceLogs));
-    return false;
 }
 
 async function loadFromJSONbin() {
+    if (useLocalStorage) {
+        return JSON.parse(localStorage.getItem('maintenanceLogs') || '[]');
+    }
+
     try {
         const response = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}/latest`, {
             headers: {
@@ -90,13 +105,16 @@ async function loadFromJSONbin() {
             const data = await response.json();
             console.log('✅ Data loaded from JSONBin!');
             return data.record.maintenanceLogs || [];
+        } else {
+            console.warn('❌ JSONBin load failed, using localStorage');
+            useLocalStorage = true;
+            return JSON.parse(localStorage.getItem('maintenanceLogs') || '[]');
         }
     } catch (error) {
-        console.error('❌ JSONBin load error:', error);
+        console.error('❌ JSONBin load error, using localStorage:', error);
+        useLocalStorage = true;
+        return JSON.parse(localStorage.getItem('maintenanceLogs') || '[]');
     }
-    
-    // Fallback to localStorage
-    return JSON.parse(localStorage.getItem('maintenanceLogs') || '[]');
 }
 
 // Navigation
@@ -224,11 +242,15 @@ async function createMaintenanceLog() {
         // Add to local array
         maintenanceLogs.unshift(formData);
         
-        // Save to JSONBin
+        // Save to JSONBin or localStorage
         const cloudSaved = await saveToJSONbin();
         
         let successMsg = 'Maintenance log created successfully!';
-        if (cloudSaved) successMsg += ' (Saved to cloud)';
+        if (cloudSaved) {
+            successMsg += ' (Saved to cloud)';
+        } else {
+            successMsg += ' (Saved locally)';
+        }
         if (machineImageFile) successMsg += ' Image saved.';
         if (quotationFile) successMsg += ' Quotation saved.';
         
@@ -266,7 +288,7 @@ function getMaterialsData() {
     return materials;
 }
 
-// Load logs from JSONBin
+// Load logs from JSONBin or localStorage
 async function loadMaintenanceLogs() {
     maintenanceLogs = await loadFromJSONbin();
     displayMaintenanceLogs();
