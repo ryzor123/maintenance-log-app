@@ -1,6 +1,6 @@
 // Configuration - UPDATE THESE WITH YOUR SUPABASE DETAILS
-const SUPABASE_URL = 'https://eelvnresijjzfswqwtrt.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVlbHZucmVzaWpqemZzd3F3dHJ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjEyNzQ4ODMsImV4cCI6MjA3Njg1MDg4M30.MpMUT_zzXAk0yhbSuVFAY8gKUAsJQigngpLPZXlMn_4';
+const SUPABASE_URL = 'https://kgtbkzqyclsenkvyajyd.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtndGJrenF5Y2xzZW5rdnlhanlkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIwNzQyNDksImV4cCI6MjA3NzY1MDI0OX0.1tFJQAJDcb4Nf1bYChfLkjA2xbjwJu6ekTcWl8fNGvk';
 const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // App State
@@ -317,3 +317,4 @@ async function logout() {
     checkAuth();
 
 }
+
