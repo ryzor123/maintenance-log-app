@@ -1,10 +1,10 @@
 // JSONBin Configuration - REPLACE WITH YOUR ACTUAL CREDENTIALS
-const JSONBIN_API_KEY = '$2a$10$YOUR_API_KEY_HERE';
-const JSONBIN_BIN_ID = 'YOUR_BIN_ID_HERE';
+const JSONBIN_API_KEY = '$2a$10$hzX1j1hFueX60CYI5dBhcORoLLXVImc.svqqGAC3q/pkpbJBSpz.e';
+const JSONBIN_BIN_ID = '69076ba543b1c97be9940844';
 
 // App State
 let maintenanceLogs = [];
-let currentUser = { email: 'user@company.com' };
+let currentUser = { email: 'nazimul.1203106@gmail.com' };
 let useLocalStorage = false;
 
 // Initialize App
@@ -486,3 +486,4 @@ function exportAllData() {
 function logout() {
     showLogin();
 }
+
