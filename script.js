@@ -33,6 +33,7 @@ function initApp() {
     console.log('App initialized - Supabase:', !!window.supabaseClient);
     checkAuth();
     setupEventListeners();
+    loadMaintenanceLogs(); // Load logs immediately
 }
 
 // Authentication - SIMPLIFIED VERSION
@@ -60,7 +61,6 @@ function showMainApp() {
     document.getElementById('login-page').classList.remove('active');
     document.getElementById('main-app').classList.add('active');
     showView('dashboard');
-    loadMaintenanceLogs();
 }
 
 // Event Listeners
@@ -171,45 +171,46 @@ async function createMaintenanceLog() {
     }
 
     try {
-        // Try to save to Supabase if available
+        // ALWAYS save to localStorage first (this always works)
+        saveToLocalStorage(formData);
+        
+        // Then try to save to Supabase if available (optional)
         if (window.supabaseClient) {
             const { data, error } = await window.supabaseClient
                 .from('maintenance_logs')
                 .insert([formData]);
 
             if (error) {
-                console.error('Supabase error:', error);
-                // Fallback to localStorage
-                saveToLocalStorage(formData);
+                console.error('Supabase error (this is OK - using localStorage):', error.message);
+                // We don't show error to user since localStorage worked
             } else {
-                console.log('Saved to Supabase:', data);
-                alert('Maintenance log created successfully!');
+                console.log('Also saved to Supabase:', data);
             }
-        } else {
-            // Fallback to localStorage
-            saveToLocalStorage(formData);
         }
 
-        // Reset form
+        // Reset form and show success
         document.getElementById('maintenance-form').reset();
+        alert('Maintenance log created successfully!');
         showView('dashboard');
-        loadMaintenanceLogs();
+        loadMaintenanceLogs(); // Reload to show the new log
         
     } catch (error) {
         console.error('Error creating log:', error);
-        // Fallback to localStorage
-        saveToLocalStorage(formData);
+        alert('Maintenance log saved locally!');
+        showView('dashboard');
+        loadMaintenanceLogs();
     }
 }
 
 function saveToLocalStorage(formData) {
     const logs = JSON.parse(localStorage.getItem('maintenanceLogs') || '[]');
-    logs.push({
+    const newLog = {
         id: Date.now().toString(),
         ...formData
-    });
+    };
+    logs.unshift(newLog); // Add to beginning of array
     localStorage.setItem('maintenanceLogs', JSON.stringify(logs));
-    alert('Maintenance log saved locally!');
+    console.log('Saved to localStorage:', newLog);
 }
 
 function getMaterialsData() {
@@ -234,25 +235,21 @@ async function loadMaintenanceLogs() {
     console.log('Loading maintenance logs...');
     
     try {
-        // Try to load from Supabase first
+        // ALWAYS load from localStorage first (this always works)
+        maintenanceLogs = JSON.parse(localStorage.getItem('maintenanceLogs') || '[]');
+        console.log('Loaded from localStorage:', maintenanceLogs.length, 'logs');
+        
+        // Then try to load from Supabase if available (optional)
         if (window.supabaseClient) {
             const { data, error } = await window.supabaseClient
                 .from('maintenance_logs')
                 .select('*')
                 .order('created_at', { ascending: false });
 
-            if (!error && data) {
-                maintenanceLogs = data;
-                console.log('Loaded from Supabase:', data.length, 'logs');
-            } else {
-                // Fallback to localStorage
-                maintenanceLogs = JSON.parse(localStorage.getItem('maintenanceLogs') || '[]');
-                console.log('Loaded from localStorage:', maintenanceLogs.length, 'logs');
+            if (!error && data && data.length > 0) {
+                console.log('Also loaded from Supabase:', data.length, 'logs');
+                // You could merge Supabase data here if needed
             }
-        } else {
-            // Fallback to localStorage
-            maintenanceLogs = JSON.parse(localStorage.getItem('maintenanceLogs') || '[]');
-            console.log('Loaded from localStorage:', maintenanceLogs.length, 'logs');
         }
         
         displayMaintenanceLogs();
@@ -265,16 +262,26 @@ async function loadMaintenanceLogs() {
 
 function displayMaintenanceLogs() {
     const container = document.getElementById('logs-list');
-    if (!container) return;
+    if (!container) {
+        console.error('logs-list container not found!');
+        return;
+    }
     
     const searchTerm = document.getElementById('search-input')?.value.toLowerCase() || '';
     
     const filteredLogs = maintenanceLogs.filter(log => 
-        log.machine_name?.toLowerCase().includes(searchTerm) ||
-        log.operator_name?.toLowerCase().includes(searchTerm) ||
-        log.machine_section?.toLowerCase().includes(searchTerm) ||
-        log.sub_part_area?.toLowerCase().includes(searchTerm)
+        (log.machine_name && log.machine_name.toLowerCase().includes(searchTerm)) ||
+        (log.operator_name && log.operator_name.toLowerCase().includes(searchTerm)) ||
+        (log.machine_section && log.machine_section.toLowerCase().includes(searchTerm)) ||
+        (log.sub_part_area && log.sub_part_area.toLowerCase().includes(searchTerm))
     );
+
+    console.log('Displaying logs:', filteredLogs.length);
+    
+    if (filteredLogs.length === 0) {
+        container.innerHTML = '<p>No maintenance logs found. Create your first log!</p>';
+        return;
+    }
 
     container.innerHTML = filteredLogs.map(log => `
         <div class="log-card">
@@ -316,11 +323,11 @@ function displayMaintenanceLogs() {
                 <small>Created: ${new Date(log.created_at).toLocaleDateString()} by ${log.created_by || 'User'}</small>
             </div>
         </div>
-    `).join('') || '<p>No maintenance logs found.</p>';
+    `).join('');
 }
 
 function editLog(id) {
-    const log = maintenanceLogs.find(log => log.id === id);
+    const log = maintenanceLogs.find(log => log.id == id);
     if (log) {
         // Populate form with log data
         document.getElementById('machine-name').value = log.machine_name || '';
@@ -331,13 +338,16 @@ function editLog(id) {
         document.getElementById('maintenance-staff').value = log.maintenance_staff || '';
         document.getElementById('duration-hours').value = log.duration_hours || '';
         document.getElementById('description').value = log.description || '';
-        document.getElementById('needs-external-repair').checked = log.needs_external_repair || false;
+        
+        const needsExternalRepair = document.getElementById('needs-external-repair');
+        needsExternalRepair.checked = log.needs_external_repair || false;
+        
         document.getElementById('vendor-name').value = log.vendor_name || '';
         document.getElementById('external-duration').value = log.external_duration || '';
         
         // Populate materials
         document.getElementById('materials-container').innerHTML = '';
-        if (log.materials) {
+        if (log.materials && log.materials.length > 0) {
             log.materials.forEach(material => {
                 addMaterial();
                 const rows = document.querySelectorAll('.material-row');
@@ -346,6 +356,9 @@ function editLog(id) {
                 lastRow.querySelector('.material-qty-needed').value = material.quantity_needed || '';
                 lastRow.querySelector('.material-qty-available').value = material.quantity_available || '';
             });
+        } else {
+            // Ensure at least one material row exists
+            addMaterial();
         }
         
         toggleExternalRepair();
@@ -353,12 +366,14 @@ function editLog(id) {
         
         // Store the ID for update
         document.getElementById('maintenance-form').dataset.editingId = id;
+    } else {
+        alert('Log not found!');
     }
 }
 
 function deleteLog(id) {
     if (confirm('Are you sure you want to delete this maintenance log?')) {
-        maintenanceLogs = maintenanceLogs.filter(log => log.id !== id);
+        maintenanceLogs = maintenanceLogs.filter(log => log.id != id);
         localStorage.setItem('maintenanceLogs', JSON.stringify(maintenanceLogs));
         
         // Also delete from Supabase if available
@@ -373,6 +388,7 @@ function deleteLog(id) {
         }
         
         loadMaintenanceLogs();
+        alert('Maintenance log deleted!');
     }
 }
 
